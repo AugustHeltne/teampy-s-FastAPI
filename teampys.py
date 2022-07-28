@@ -1,18 +1,37 @@
-from .classes import RAT, Card
-from flask import Flask
-from flask import request
-from flask import redirect
-from flask import render_template
+from flask import Flask, request, redirect, render_template, url_for
+from flask_login import LoginManager, login_required, login_user, logout_user, current_user
+from flask_pymongo import PyMongo
+from classes import RAT, Card, User
+from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
 import uuid
 import random
 import string
-from flask_pymongo import PyMongo
+import os
+import json
+
 
 app = Flask(__name__)
 
 app.config['SECRET_KEY'] = 'Hemmelig!'  # is required
 app.config["MONGO_DBNAME"] = "ratdb"  # DB name
 app.config["MONGO_URI"] = "mongodb://localhost:27017/ratdb"
+
+load_dotenv()
+oauth = OAuth(app)
+oauth.register(
+    name='feide',
+    client_id=os.getenv("FEIDE_CLIENT_ID"),
+    client_secret=os.getenv("FEIDE_CLIENT_SECRET"),
+    server_metadata_url='https://auth.dataporten.no/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid'}
+)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+login_manager.login_message = "Creating RATs is only available to logged in users."
 
 mongo = PyMongo(app)
 ratdb = mongo.db.ratdb
@@ -33,6 +52,19 @@ rats_by_public_id = {}
 use_variables = False
 
 
+@login_manager.user_loader
+def load_user(user_id):
+    # TODO: Make this less stupid
+    try:
+        return User(user_id)
+    except:
+        return None
+
+
+def store_user(user_id):
+    ratdb.insert_one({'username': user_id}, {"private_id": '{}'.format(uuid.uuid4())})
+
+
 def find_rat_by_public_id(public_id):
     if use_variables:
         global rats_by_public_id
@@ -41,7 +73,10 @@ def find_rat_by_public_id(public_id):
     else:
         data = ratdb.find_one({'public_id': public_id})
         if data:
-            return RAT.from_dict(data)
+            temp = RAT.from_dict(data)
+            print(temp.to_dict())
+            return temp
+            #return RAT.from_dict(data)
     return None
 
 
@@ -132,6 +167,7 @@ def validate_solution(solution, questions, alternatives):
 
 
 @app.route('/create', methods=['POST', 'GET'])
+@login_required
 def create():
     label = request.args['label'] if 'label' in request.args else None
     teams = int(request.args['teams'])
@@ -149,7 +185,8 @@ def create():
     private_id = '{}'.format(uuid.uuid4())
     public_id = ''.join(random.choices(string.ascii_uppercase, k=5))
     team_colors = random.sample(colors, teams)
-    rat = RAT(private_id, public_id, label, teams, questions, alternatives, solution, team_colors)
+    creator = current_user.get_id()
+    rat = RAT(private_id, public_id, label, teams, questions, alternatives, solution, team_colors, creator)
     # create a new card for each team
     for team in range(1, int(teams) + 1, 1):
         card = Card.new_card(label, str(team), int(questions), int(alternatives), solution, rat.team_colors[team - 1])
@@ -216,3 +253,28 @@ def download(private_id, format):
         if card is not None:
             rat_cards.append(card)
     return rat.download(format, rat_cards)
+
+
+@app.route('/login')
+def login():
+    redirect_uri = url_for('auth', _external=True)
+    return oauth.feide.authorize_redirect(redirect_uri)
+
+
+@app.route('/auth')
+def auth():
+    token = json.loads(json.dumps(oauth.feide.authorize_access_token()))
+    username = token["userinfo"]['https://n.feide.no/claims/eduPersonPrincipalName']
+    user = User(username)
+    login_user(user)
+    return redirect('/')
+
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect("/")
+
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=80, debug=True)

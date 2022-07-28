@@ -1,7 +1,9 @@
 import uuid
 import io
+import datetime
 from flask import render_template
 from flask import send_file
+from flask_login import UserMixin
 
 
 class AnswerState:
@@ -216,7 +218,7 @@ class Card:
 
 class RAT:
 
-    def __init__(self, private_id, public_id, label, teams, questions, alternatives, solution, team_colors):
+    def __init__(self, private_id, public_id, label, teams, questions, alternatives, solution, team_colors, creator):
         self.private_id = private_id
         self.public_id = public_id
         self.label = label
@@ -227,6 +229,7 @@ class RAT:
         self.card_ids_by_team = {}
         self.grabbed_rats = []
         self.team_colors = team_colors
+        self.creator = creator
 
     def to_dict(self):
         d = {'private_id': self.private_id,
@@ -238,14 +241,15 @@ class RAT:
              'solution': self.solution,
              'team_colors': self.team_colors,
              'grabbed_rats': self.grabbed_rats,
-             'card_ids_by_team': self.card_ids_by_team}
+             'card_ids_by_team': self.card_ids_by_team,
+             'creator': self.creator}
         return d
 
     @staticmethod
     def from_dict(d):
         rat = RAT(
             d['private_id'], d['public_id'],
-            d['label'], d['teams'], d['questions'], d['alternatives'], d['solution'], d['team_colors'])
+            d['label'], d['teams'], d['questions'], d['alternatives'], d['solution'], d['team_colors'], d["creator"])
         rat.grabbed_rats = d['grabbed_rats']
         rat.card_ids_by_team = d['card_ids_by_team']
         return rat
@@ -299,3 +303,18 @@ class RAT:
                              attachment_filename='trat.txt',
                              as_attachment=True,
                              mimetype='text/text')
+
+
+class User(UserMixin):
+    # https://flask-login.readthedocs.io/en/latest/
+
+    def __init__(self, username):
+        self.id = username
+
+
+    def to_dict(self):
+        return {"username:": self.id}
+
+    def get_id(self):
+        return self.id
+

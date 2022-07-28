@@ -45,7 +45,16 @@ main {
   </div>
 </form>
       <a href="new/">Create a new RAT</a>
+        <div>
+            {% if current_user.is_authenticated %}
+                <a href="logout">Logout ({{ current_user.id }})</a>
+            {% else %}
+                <a href="login">Login</a>
+            {% endif %}
+        </div>
    </div><!-- scratchcard-->
+<div>
+
 
    
 
