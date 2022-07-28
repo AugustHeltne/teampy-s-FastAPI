@@ -1,9 +1,10 @@
-from flask import Flask, request, redirect, render_template, url_for
+from flask import Flask, request, redirect, render_template, url_for, session
 from flask_login import LoginManager, login_required, login_user, logout_user, current_user
 from flask_pymongo import PyMongo
 from classes import RAT, Card, User
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
+import datetime
 import uuid
 import random
 import string
@@ -29,7 +30,7 @@ oauth.register(
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
-login_manager.login_message = "Creating RATs is only available to logged in users."
+
 
 mongo = PyMongo(app)
 ratdb = mongo.db.ratdb
@@ -52,15 +53,16 @@ use_variables = False
 
 @login_manager.user_loader
 def load_user(user_id):
-    # TODO: Make this less stupid
+    # TODO: Does the application require proper user management?
     try:
         return User(user_id)
     except:
         return None
 
-
-def store_user(user_id):
-    ratdb.insert_one({'username': user_id}, {"private_id": '{}'.format(uuid.uuid4())})
+@app.before_request
+def before_request():
+    session.permanent = True
+    app.permanent_session_lifetime = datetime.timedelta(minutes=30)
 
 
 def find_rat_by_public_id(public_id):
