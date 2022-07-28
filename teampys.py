@@ -8,8 +8,6 @@ import uuid
 import random
 import string
 import os
-import json
-
 
 app = Flask(__name__)
 
@@ -263,7 +261,7 @@ def login():
 
 @app.route('/auth')
 def auth():
-    token = json.loads(json.dumps(oauth.feide.authorize_access_token()))
+    token = oauth.feide.authorize_access_token()
     username = token["userinfo"]['https://n.feide.no/claims/eduPersonPrincipalName']
     user = User(username)
     login_user(user)
