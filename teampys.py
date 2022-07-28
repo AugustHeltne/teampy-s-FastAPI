@@ -151,6 +151,7 @@ def show_rat_students(public_id):
 
 
 @app.route('/new/', methods=['POST', 'GET'])
+@login_required
 def new():
     action_url = request.host_url + 'create'
     return render_template('new_rat.html', primary='#007bff', action_url=action_url)
